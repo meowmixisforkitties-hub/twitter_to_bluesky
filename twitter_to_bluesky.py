@@ -18,6 +18,10 @@ time.sleep(jitter_seconds)
 
 # ========== CONFIGURATION ==========
 
+GIST_ID = os.environ.get("GIST_ID")
+GIST_TOKEN = os.environ.get("GIST_TOKEN")
+STATE_FILENAME = "posted_tweets.json"
+
 # Twitter usernames (without the @)
 TWITTER_USERNAMES = [
     "PapaBowflex",
@@ -42,7 +46,7 @@ BSKY_HANDLE = os.environ.get("BSKY_HANDLE")
 BSKY_APP_PASSWORD = os.environ.get("BSKY_APP_PASSWORD")
 
 # Path to JSON file that remembers which tweets we've already posted
-STATE_FILE = Path(__file__).with_name("posted_tweets.json")
+
 
 # Max characters per Bluesky post (Bluesky default is 300)
 MAX_BSKY_CHARS = 300
@@ -65,25 +69,79 @@ HTTP_HEADERS = {
 
 
 def load_state() -> Dict:
-    """Load state from STATE_FILE; returns dict with 'tweet_ids' set."""
-    if STATE_FILE.exists():
-        with STATE_FILE.open("r", encoding="utf-8") as f:
-            data = json.load(f)
-    else:
-        data = {}
+    """
+    Load state from a GitHub Gist.
+    The gist must contain a file named STATE_FILENAME with JSON like:
+    { "tweet_ids": ["123", "456"] }
+    """
+    if not GIST_ID or not GIST_TOKEN:
+        print("WARNING: GIST_ID or GIST_TOKEN not set, using empty in-memory state.")
+        return {"tweet_ids": set()}
 
-    tweet_ids = set(data.get("tweet_ids", []))
-    return {"tweet_ids": tweet_ids}
+    url = f"https://api.github.com/gists/{GIST_ID}"
+    headers = {
+        "Authorization": f"token {GIST_TOKEN}",
+        "Accept": "application/vnd.github+json",
+    }
+
+    try:
+        resp = requests.get(url, headers=headers, timeout=10)
+        resp.raise_for_status()
+    except requests.RequestException as e:
+        print(f"ERROR: Failed to fetch gist state: {e}")
+        # fall back to empty state so script still runs
+        return {"tweet_ids": set()}
+
+    data = resp.json()
+    files = data.get("files", {})
+    file_obj = files.get(STATE_FILENAME)
+
+    if not file_obj or "content" not in file_obj:
+        print(f"WARNING: {STATE_FILENAME} not found in gist, starting fresh.")
+        return {"tweet_ids": set()}
+
+    try:
+        content = file_obj["content"]
+        state_json = json.loads(content)
+        tweet_ids = set(state_json.get("tweet_ids", []))
+        print(f"Loaded {len(tweet_ids)} previously posted tweet IDs from gist.")
+        return {"tweet_ids": tweet_ids}
+    except Exception as e:
+        print(f"ERROR: Failed to parse gist content, starting fresh: {e}")
+        return {"tweet_ids": set()}
 
 
 def save_state(state: Dict) -> None:
-    """Save state back to STATE_FILE."""
-    data = {
-        "tweet_ids": sorted(list(state["tweet_ids"])),
-    }
-    with STATE_FILE.open("w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2)
+    """
+    Save state back to GitHub Gist.
+    Writes JSON into STATE_FILENAME in the gist.
+    """
+    if not GIST_ID or not GIST_TOKEN:
+        print("WARNING: GIST_ID or GIST_TOKEN not set, state will not be persisted.")
+        return
 
+    tweet_ids = sorted(list(state.get("tweet_ids", [])))
+    content_str = json.dumps({"tweet_ids": tweet_ids}, indent=2)
+
+    url = f"https://api.github.com/gists/{GIST_ID}"
+    headers = {
+        "Authorization": f"token {GIST_TOKEN}",
+        "Accept": "application/vnd.github+json",
+    }
+    payload = {
+        "files": {
+            STATE_FILENAME: {
+                "content": content_str
+            }
+        }
+    }
+
+    try:
+        resp = requests.patch(url, headers=headers, json=payload, timeout=10)
+        resp.raise_for_status()
+        print(f"Saved {len(tweet_ids)} tweet IDs to gist.")
+    except requests.RequestException as e:
+        print(f"ERROR: Failed to save gist state: {e}")
 
 def looks_like_retweet(title: str) -> bool:
     """
