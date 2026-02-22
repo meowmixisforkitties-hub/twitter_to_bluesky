@@ -4,7 +4,7 @@ on:
   schedule:
     # Run every hour at minute 7 (UTC)
     - cron: '31 * * * *'
-  #workflow_dispatch:
+  workflow_dispatch:
 
 jobs:
   crosspost:
