@@ -2,9 +2,9 @@ name: Twitter → Bluesky crossposter
 
 on:
   schedule:
-    # Run every hour at minute 7 (so it's not exactly on the hour)
+    # Run every hour at minute 7 (UTC)
     - cron: "7 * * * *"
-  workflow_dispatch: {}
+  workflow_dispatch:
 
 jobs:
   crosspost:
