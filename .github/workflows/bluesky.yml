@@ -31,4 +31,4 @@ jobs:
           GIST_ID: ${{ secrets.GIST_ID }}
           GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
         run: |
-          python twitter_to_bluesky.py
+          python twitter_to_bluesky_img.py
