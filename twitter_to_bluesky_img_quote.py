@@ -35,9 +35,10 @@ TWITTER_USERNAMES = [
     "ericmichael82",
     "rhinojawn",
     "yugyawdaorb",
-    "jackiewaspushed",
     "LuisFernandoPHL"
 ]
+
+#"jackiewaspushed"
 
 # How many recent tweets per user to consider each run
 TWEETS_PER_USER = 10
